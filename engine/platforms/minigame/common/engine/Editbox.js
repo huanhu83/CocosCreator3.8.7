@@ -79,6 +79,11 @@
             const cbs = this._eventListeners;
 
             cbs.onKeyboardInput = function (res) {
+                //#region [自定义]，添加如下代码，输入内容超出限定长度后截断
+                if(res.value.length>delegate.maxLength){
+                    res.value = res.value.substr(0,delegate.maxLength);
+                }
+                //#endregion
                 if (delegate._string !== res.value) {
                     delegate._editBoxTextChanged(res.value);
                 }
