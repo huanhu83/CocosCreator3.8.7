@@ -582,7 +582,8 @@ cc.assetManager.init = function (options) {
       var multiline = delegate.inputMode === EditBoxComp.InputMode.ANY;
       __globalAdapter.showKeyboard({
         defaultValue: delegate.string,
-        maxLength: delegate.maxLength < 0 ? MAX_VALUE : delegate.maxLength,
+        maxLength: MAX_VALUE,
+        //delegate.maxLength < 0 ? MAX_VALUE : delegate.maxLength,
         multiple: multiline,
         confirmHold: false,
         confirmType: getKeyboardReturnType(delegate.returnType),
