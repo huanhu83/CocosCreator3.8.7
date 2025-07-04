@@ -1133,7 +1133,7 @@ var outOfStorageErrorCode = '10028'; // not exactly right
 var fsUtils = {
   fs: fs,
   isOutOfStorage: function isOutOfStorage(errorCode) {
-    return errorCode.toString() === outOfStorageErrorCode;
+    return errorCode != null && String(errorCode) === outOfStorageErrorCode;
   },
   getUserDataPath: function getUserDataPath() {
     return my.env.USER_DATA_PATH;
