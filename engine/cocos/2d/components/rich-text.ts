@@ -23,31 +23,24 @@
  THE SOFTWARE.
 */
 
-import { ccclass, requireComponent, executeInEditMode, executionOrder, help, menu, multiline, type, displayOrder, serializable, editable } from 'cc.decorator';
-import { DEBUG, DEV, EDITOR } from 'internal:constants';
-import { Font, SpriteAtlas, TTFFont, SpriteFrame } from '../assets';
-import { EventTouch } from '../../input/types';
-import { assert, warnID, Color, Vec2, CCObjectFlags, cclegacy, js, Size } from '../../core';
-import { HtmlTextParser, IHtmlTextParserResultObj, IHtmlTextParserStack } from '../utils/html-text-parser';
-import { Node } from '../../scene-graph';
-import { CacheMode, HorizontalTextAlignment, Label, VerticalTextAlignment } from './label';
-import { Sprite } from './sprite';
-import { UITransform } from '../framework';
-import { Component } from '../../scene-graph/component';
-import { NodeEventType } from '../../scene-graph/node-event';
-import {
-    BASELINE_RATIO,
-    fragmentText,
-    isUnicodeCJK,
-    isUnicodeSpace,
-    getEnglishWordPartAtFirst,
-    getEnglishWordPartAtLast,
-    getSymbolAt,
-} from '../utils/text-utils';
+import { ccclass, requireComponent, executeInEditMode, executionOrder, help, menu, multiline, type, displayOrder, serializable, editable } from "cc.decorator";
+import { DEBUG, DEV, EDITOR } from "internal:constants";
+import { Font, SpriteAtlas, TTFFont, SpriteFrame } from "../assets";
+import { EventTouch } from "../../input/types";
+import { assert, warnID, Color, Vec2, CCObjectFlags, cclegacy, js, Size } from "../../core";
+import { HtmlTextParser, IHtmlTextParserResultObj, IHtmlTextParserStack } from "../utils/html-text-parser";
+import { Node } from "../../scene-graph";
+import { CacheMode, HorizontalTextAlignment, Label, VerticalTextAlignment } from "./label";
+import { Sprite } from "./sprite";
+import { UITransform } from "../framework";
+import { Component } from "../../scene-graph/component";
+import { NodeEventType } from "../../scene-graph/node-event";
+import { BASELINE_RATIO, fragmentText, isUnicodeCJK, isUnicodeSpace, getEnglishWordPartAtFirst, getEnglishWordPartAtLast, getSymbolAt } from "../utils/text-utils";
+import { Sorting2D } from "exports/sorting-2d";
 
 const _htmlTextParser = new HtmlTextParser();
-const RichTextChildName = 'RICHTEXT_CHILD';
-const RichTextChildImageName = 'RICHTEXT_Image_CHILD';
+const RichTextChildName = "RICHTEXT_CHILD";
+const RichTextChildImageName = "RICHTEXT_Image_CHILD";
 
 const _tempSize = new Vec2();
 const _tempSizeLeft = new Vec2();
@@ -57,7 +50,7 @@ const _tempSizeLeft = new Vec2();
  */
 const labelPool = new js.Pool((seg: ISegment) => {
     if (DEV) {
-        assert(!seg.node.parent, 'Recycling node\'s parent should be null!');
+        assert(!seg.node.parent, "Recycling node's parent should be null!");
     }
     if (!cclegacy.isValid(seg.node)) {
         return false;
@@ -72,26 +65,26 @@ const labelPool = new js.Pool((seg: ISegment) => {
 
 const imagePool = new js.Pool((seg: ISegment) => {
     if (DEV) {
-        assert(!seg.node.parent, 'Recycling node\'s parent should be null!');
+        assert(!seg.node.parent, "Recycling node's parent should be null!");
     }
     return cclegacy.isValid(seg.node) as boolean;
 }, 10);
 
 //
-function createSegment (type: string): ISegment {
+function createSegment(type: string): ISegment {
     return {
         node: new Node(type),
         comp: null,
         lineCount: 0,
         styleIndex: 0,
-        imageOffset: '',
-        clickParam: '',
-        clickHandler: '',
+        imageOffset: "",
+        clickParam: "",
+        clickHandler: "",
         type,
     };
 }
 
-function getSegmentByPool (type: string, content: string | SpriteFrame): ISegment | null {
+function getSegmentByPool(type: string, content: string | SpriteFrame, richTextNode: Node): ISegment | null {
     let seg;
     if (type === RichTextChildName) {
         seg = labelPool._get();
@@ -110,13 +103,25 @@ function getSegmentByPool (type: string, content: string | SpriteFrame): ISegmen
         seg.comp.spriteFrame = content as SpriteFrame;
         seg.comp.type = Sprite.Type.SLICED;
         seg.comp.sizeMode = Sprite.SizeMode.CUSTOM;
-    } else { // RichTextChildName
+    } else {
+        // RichTextChildName
         seg.comp = node.getComponent(Label) || node.addComponent(Label);
         seg.comp.string = content as string;
         seg.comp.horizontalAlign = HorizontalTextAlignment.LEFT;
         seg.comp.verticalAlign = VerticalTextAlignment.TOP;
         seg.comp.underlineHeight = 2;
     }
+
+    // 为了让RichText支持Sorting2D
+    {
+        const parentSorting2d = richTextNode.getComponent(Sorting2D);
+        if (parentSorting2d) {
+            let sorting2d = node.getComponent(Sorting2D) || node.addComponent(Sorting2D);
+            sorting2d.sortingLayer = parentSorting2d.sortingLayer;
+            sorting2d.sortingOrder = parentSorting2d.sortingOrder;
+        }
+    }
+
     node.setPosition(0, 0, 0);
     const trans = node._getUITransformComp()!;
     trans.setAnchorPoint(0.5, 0.5);
@@ -124,9 +129,9 @@ function getSegmentByPool (type: string, content: string | SpriteFrame): ISegmen
     seg.node = node;
     seg.lineCount = 0;
     seg.styleIndex = 0;
-    seg.imageOffset = '';
-    seg.clickParam = '';
-    seg.clickHandler = '';
+    seg.imageOffset = "";
+    seg.clickParam = "";
+    seg.clickHandler = "";
     return seg as ISegment | null;
 }
 
@@ -138,7 +143,7 @@ interface ISegment {
     imageOffset: string;
     clickParam: string;
     clickHandler: string;
-    type: string,
+    type: string;
 }
 
 /**
@@ -148,11 +153,11 @@ interface ISegment {
  * @zh
  * 富文本组件。
  */
-@ccclass('cc.RichText')
+@ccclass("cc.RichText")
 @requireComponent(UITransform)
-@help('i18n:cc.RichText')
+@help("i18n:cc.RichText")
 @executionOrder(110)
-@menu('2D/RichText')
+@menu("2D/RichText")
 @executeInEditMode
 export class RichText extends Component {
     /**
@@ -163,10 +168,10 @@ export class RichText extends Component {
      * 富文本显示的文本内容。
      */
     @multiline
-    get string (): string {
+    get string(): string {
         return this._string;
     }
-    set string (value) {
+    set string(value) {
         if (this._string === value) {
             return;
         }
@@ -183,11 +188,11 @@ export class RichText extends Component {
      * 文本内容的水平对齐方式。
      */
     @type(HorizontalTextAlignment)
-    get horizontalAlign (): HorizontalTextAlignment {
+    get horizontalAlign(): HorizontalTextAlignment {
         return this._horizontalAlign;
     }
 
-    set horizontalAlign (value) {
+    set horizontalAlign(value) {
         if (this.horizontalAlign === value) {
             return;
         }
@@ -205,11 +210,11 @@ export class RichText extends Component {
      * 文本内容的竖直对齐方式。
      */
     @type(VerticalTextAlignment)
-    get verticalAlign (): VerticalTextAlignment {
+    get verticalAlign(): VerticalTextAlignment {
         return this._verticalAlign;
     }
 
-    set verticalAlign (value) {
+    set verticalAlign(value) {
         if (this._verticalAlign === value) {
             return;
         }
@@ -227,11 +232,11 @@ export class RichText extends Component {
      * 富文本字体大小。
      */
     @editable
-    get fontSize (): number {
+    get fontSize(): number {
         return this._fontSize;
     }
 
-    set fontSize (value) {
+    set fontSize(value) {
         if (this._fontSize === value) {
             return;
         }
@@ -249,10 +254,10 @@ export class RichText extends Component {
      * 富文本默认文字颜色。在文本内容没有设置颜色参数时生效。暂不支持颜色级联。
      */
     @type(Color)
-    get fontColor (): Color {
+    get fontColor(): Color {
         return this._fontColor;
     }
-    set fontColor (value: Color) {
+    set fontColor(value: Color) {
         if (this._fontColor === value) {
             return;
         }
@@ -269,10 +274,10 @@ export class RichText extends Component {
      * 富文本定制系统字体。
      */
     @editable
-    get fontFamily (): string {
+    get fontFamily(): string {
         return this._fontFamily;
     }
-    set fontFamily (value: string) {
+    set fontFamily(value: string) {
         if (this._fontFamily === value) return;
         this._fontFamily = value;
         this._layoutDirty = true;
@@ -287,10 +292,10 @@ export class RichText extends Component {
      * 富文本定制字体。
      */
     @type(Font)
-    get font (): TTFFont | null {
+    get font(): TTFFont | null {
         return this._font;
     }
-    set font (value) {
+    set font(value) {
         if (this._font === value) {
             return;
         }
@@ -316,10 +321,10 @@ export class RichText extends Component {
      * 是否使用系统字体。
      */
     @displayOrder(12)
-    get useSystemFont (): boolean {
+    get useSystemFont(): boolean {
         return this._isSystemFontUsed;
     }
-    set useSystemFont (value: boolean) {
+    set useSystemFont(value: boolean) {
         if (this._isSystemFontUsed === value) {
             return;
         }
@@ -346,10 +351,10 @@ export class RichText extends Component {
      * 文本缓存模式, 该模式只支持系统字体。
      */
     @type(CacheMode)
-    get cacheMode (): CacheMode {
+    get cacheMode(): CacheMode {
         return this._cacheMode;
     }
-    set cacheMode (value: CacheMode) {
+    set cacheMode(value: CacheMode) {
         if (this._cacheMode === value) {
             return;
         }
@@ -365,11 +370,11 @@ export class RichText extends Component {
      * 富文本的最大宽度。
      */
     @editable
-    get maxWidth (): number {
+    get maxWidth(): number {
         return this._maxWidth;
     }
 
-    set maxWidth (value) {
+    set maxWidth(value) {
         if (this._maxWidth === value) {
             return;
         }
@@ -387,11 +392,11 @@ export class RichText extends Component {
      * 富文本行高。
      */
     @editable
-    get lineHeight (): number {
+    get lineHeight(): number {
         return this._lineHeight;
     }
 
-    set lineHeight (value) {
+    set lineHeight(value) {
         if (this._lineHeight === value) {
             return;
         }
@@ -409,11 +414,11 @@ export class RichText extends Component {
      * 对于 img 标签里面的 src 属性名称，都需要在 imageAtlas 里面找到一个有效的 spriteFrame，否则 img tag 会判定为无效。
      */
     @type(SpriteAtlas)
-    get imageAtlas (): SpriteAtlas | null {
+    get imageAtlas(): SpriteAtlas | null {
         return this._imageAtlas;
     }
 
-    set imageAtlas (value) {
+    set imageAtlas(value) {
         if (this._imageAtlas === value) {
             return;
         }
@@ -432,11 +437,11 @@ export class RichText extends Component {
      * 选中此选项后，RichText 将阻止节点边界框中的所有输入事件（鼠标和触摸），从而防止输入事件穿透到底层节点。
      */
     @editable
-    get handleTouchEvent (): boolean {
+    get handleTouchEvent(): boolean {
         return this._handleTouchEvent;
     }
 
-    set handleTouchEvent (value) {
+    set handleTouchEvent(value) {
         if (this._handleTouchEvent === value) {
             return;
         }
@@ -466,7 +471,7 @@ export class RichText extends Component {
     @serializable
     protected _lineHeight = 40;
     @serializable
-    protected _string = '<color=#00ff00>Rich</color><color=#0fffff>Text</color>';
+    protected _string = "<color=#00ff00>Rich</color><color=#0fffff>Text</color>";
     // protected _updateRichTextStatus =
     @serializable
     protected _horizontalAlign = HorizontalTextAlignment.LEFT;
@@ -479,7 +484,7 @@ export class RichText extends Component {
     @serializable
     protected _maxWidth = 0;
     @serializable
-    protected _fontFamily = 'Arial';
+    protected _fontFamily = "Arial";
     @serializable
     protected _font: TTFFont | null = null;
     @serializable
@@ -505,17 +510,17 @@ export class RichText extends Component {
     protected declare _updateRichTextStatus: () => void;
     protected _labelChildrenNum = 0; // only ISegment
 
-    constructor () {
+    constructor() {
         super();
         this._updateRichTextStatus = this._updateRichText;
     }
 
-    public onLoad (): void {
+    public onLoad(): void {
         this.node.on(NodeEventType.LAYER_CHANGED, this._applyLayer, this);
         this.node.on(NodeEventType.ANCHOR_CHANGED, this._updateRichTextPosition, this);
     }
 
-    public onEnable (): void {
+    public onEnable(): void {
         if (this.handleTouchEvent) {
             this._addEventListeners();
         }
@@ -524,7 +529,7 @@ export class RichText extends Component {
         this._activateChildren(true);
     }
 
-    public onDisable (): void {
+    public onDisable(): void {
         if (this.handleTouchEvent) {
             this._removeEventListeners();
         }
@@ -532,7 +537,7 @@ export class RichText extends Component {
         this._activateChildren(false);
     }
 
-    public onRestore (): void {
+    public onRestore(): void {
         if (!EDITOR) {
             return;
         }
@@ -547,7 +552,7 @@ export class RichText extends Component {
         }
     }
 
-    public onDestroy (): void {
+    public onDestroy(): void {
         this._segments.forEach((seg) => {
             seg.node.removeFromParent();
             if (seg.type === RichTextChildName) {
@@ -561,29 +566,29 @@ export class RichText extends Component {
         this.node.off(NodeEventType.LAYER_CHANGED, this._applyLayer, this);
     }
 
-    protected _addEventListeners (): void {
+    protected _addEventListeners(): void {
         this.node.on(NodeEventType.TOUCH_END, this._onTouchEnded, this);
     }
 
-    protected _removeEventListeners (): void {
+    protected _removeEventListeners(): void {
         this.node.off(NodeEventType.TOUCH_END, this._onTouchEnded, this);
     }
 
-    protected _updateLabelSegmentTextAttributes (): void {
+    protected _updateLabelSegmentTextAttributes(): void {
         this._segments.forEach((item) => {
             this._applyTextAttribute(item);
         });
     }
 
-    protected _createFontLabel (str: string): ISegment {
-        return getSegmentByPool(RichTextChildName, str)!;
+    protected _createFontLabel(str: string): ISegment {
+        return getSegmentByPool(RichTextChildName, str, this.node)!;
     }
 
-    protected _createImage (spriteFrame: SpriteFrame): ISegment {
-        return getSegmentByPool(RichTextChildImageName, spriteFrame)!;
+    protected _createImage(spriteFrame: SpriteFrame): ISegment {
+        return getSegmentByPool(RichTextChildImageName, spriteFrame, this.node)!;
     }
 
-    protected _onTTFLoaded (): void {
+    protected _onTTFLoaded(): void {
         if (this._font instanceof TTFFont) {
             this._layoutDirty = true;
             this._updateRichText();
@@ -594,10 +599,10 @@ export class RichText extends Component {
     }
 
     /**
-    * @engineInternal
-    * @mangle
-    */
-    protected splitLongStringApproximatelyIn2048 (text: string, styleIndex: number): string[] {
+     * @engineInternal
+     * @mangle
+     */
+    protected splitLongStringApproximatelyIn2048(text: string, styleIndex: number): string[] {
         const approxSize = text.length * this.fontSize;
         const partStringArr: string[] = [];
         // avoid that many short richtext still execute _calculateSize so that performance is low
@@ -611,13 +616,13 @@ export class RichText extends Component {
         if (_tempSize.x < 2048) {
             partStringArr.push(text);
         } else {
-            const multilineTexts = text.split('\n');
+            const multilineTexts = text.split("\n");
             for (let i = 0; i < multilineTexts.length; i++) {
                 this._calculateSize(_tempSize, styleIndex, multilineTexts[i]);
                 if (_tempSize.x < 2048) {
                     partStringArr.push(multilineTexts[i]);
                 } else {
-                    const thisPartSplitResultArr =  this.splitLongStringOver2048(multilineTexts[i], styleIndex);
+                    const thisPartSplitResultArr = this.splitLongStringOver2048(multilineTexts[i], styleIndex);
                     partStringArr.push(...thisPartSplitResultArr);
                 }
             }
@@ -626,10 +631,10 @@ export class RichText extends Component {
     }
 
     /**
-    * @engineInternal
-    * @mangle
-    */
-    protected splitLongStringOver2048 (text: string, styleIndex: number): string[] {
+     * @engineInternal
+     * @mangle
+     */
+    protected splitLongStringOver2048(text: string, styleIndex: number): string[] {
         const partStringArr: string[] = [];
         const longStr = text;
 
@@ -696,9 +701,12 @@ export class RichText extends Component {
             // consider there is a part of a word at the end of this line, it should be moved to the next line
             if (curString.length >= 2) {
                 const lastWordExec = getEnglishWordPartAtLast(curString);
-                if (lastWordExec && lastWordExec.length > 0
+                if (
+                    lastWordExec &&
+                    lastWordExec.length > 0 &&
                     // to avoid endless loop when there is only one word in this line
-                    && curString !== lastWordExec[0]) {
+                    curString !== lastWordExec[0]
+                ) {
                     curEnd -= lastWordExec[0].length;
                     curString = longStr.substring(curStart, curEnd);
                 }
@@ -725,7 +733,7 @@ export class RichText extends Component {
                 curStart = text.length;
                 curEnd = text.length;
                 curString = leftString;
-                if (leftString !== '') {
+                if (leftString !== "") {
                     partStringArr.push(curString);
                 }
                 break;
@@ -735,7 +743,7 @@ export class RichText extends Component {
         return partStringArr;
     }
 
-    protected _measureText (styleIndex: number, string?: string): number | ((s: string) => number) {
+    protected _measureText(styleIndex: number, string?: string): number | ((s: string) => number) {
         const func = (s: string): number => {
             const width = this._calculateSize(_tempSize, styleIndex, s).x;
             return width;
@@ -748,10 +756,10 @@ export class RichText extends Component {
     }
 
     /**
-    * @engineInternal
-    * @mangle
-    */
-    protected _calculateSize (out: Vec2, styleIndex: number, s: string): Vec2 {
+     * @engineInternal
+     * @mangle
+     */
+    protected _calculateSize(out: Vec2, styleIndex: number, s: string): Vec2 {
         let label: ISegment;
         if (this._labelSegmentsCache.length === 0) {
             label = this._createFontLabel(s);
@@ -767,7 +775,7 @@ export class RichText extends Component {
         return out;
     }
 
-    protected _onTouchEnded (event: EventTouch): void {
+    protected _onTouchEnded(event: EventTouch): void {
         const components = this.node.getComponents(Component);
 
         this._segments.forEach((seg) => {
@@ -785,7 +793,7 @@ export class RichText extends Component {
         });
     }
 
-    protected _containsTouchLocation (label: ISegment, point: Vec2): boolean {
+    protected _containsTouchLocation(label: ISegment, point: Vec2): boolean {
         const comp = label.node.getComponent(UITransform);
         if (!comp) {
             return false;
@@ -795,7 +803,7 @@ export class RichText extends Component {
         return myRect.contains(point);
     }
 
-    protected _resetState (): void {
+    protected _resetState(): void {
         const children = this.node.children;
 
         for (let i = children.length - 1; i >= 0; i--) {
@@ -829,7 +837,7 @@ export class RichText extends Component {
         this._layoutDirty = true;
     }
 
-    protected _activateChildren (active): void {
+    protected _activateChildren(active): void {
         for (let i = this.node.children.length - 1; i >= 0; i--) {
             const child = this.node.children[i];
             if (child.name === RichTextChildName || child.name === RichTextChildImageName) {
@@ -838,7 +846,7 @@ export class RichText extends Component {
         }
     }
 
-    protected _addLabelSegment (stringToken: string, styleIndex: number): ISegment {
+    protected _addLabelSegment(stringToken: string, styleIndex: number): ISegment {
         let labelSegment: ISegment;
         if (this._labelSegmentsCache.length === 0) {
             labelSegment = this._createFontLabel(stringToken);
@@ -868,7 +876,7 @@ export class RichText extends Component {
         return labelSegment;
     }
 
-    protected _updateRichTextWithMaxWidth (labelString: string, labelWidth: number, styleIndex: number): void {
+    protected _updateRichTextWithMaxWidth(labelString: string, labelWidth: number, styleIndex: number): void {
         let fragmentWidth = labelWidth;
         let labelSegment: ISegment;
 
@@ -896,12 +904,7 @@ export class RichText extends Component {
             }
         }
         if (fragmentWidth > this._maxWidth) {
-            const fragments = fragmentText(
-                labelString,
-                fragmentWidth,
-                this._maxWidth,
-this._measureText(styleIndex) as unknown as (s: string) => number,
-            );
+            const fragments = fragmentText(labelString, fragmentWidth, this._maxWidth, this._measureText(styleIndex) as unknown as (s: string) => number);
             for (let k = 0; k < fragments.length; ++k) {
                 const splitString = fragments[k];
                 labelSegment = this._addLabelSegment(splitString, styleIndex);
@@ -917,17 +920,17 @@ this._measureText(styleIndex) as unknown as (s: string) => number,
         }
     }
 
-    protected _isLastComponentCR (stringToken): boolean {
-        return stringToken.length - 1 === stringToken.lastIndexOf('\n');
+    protected _isLastComponentCR(stringToken): boolean {
+        return stringToken.length - 1 === stringToken.lastIndexOf("\n");
     }
 
-    protected _updateLineInfo (): void {
+    protected _updateLineInfo(): void {
         this._linesWidth.push(this._lineOffsetX);
         this._lineOffsetX = 0;
         this._lineCount++;
     }
 
-    protected _needsUpdateTextLayout (newTextArray: IHtmlTextParserResultObj[]): boolean {
+    protected _needsUpdateTextLayout(newTextArray: IHtmlTextParserResultObj[]): boolean {
         if (this._layoutDirty || !this._textArray || !newTextArray) {
             return true;
         }
@@ -942,22 +945,23 @@ this._measureText(styleIndex) as unknown as (s: string) => number,
             if (oldItem.text !== newItem.text) {
                 return true;
             } else {
-                const oldStyle = oldItem.style; const newStyle = newItem.style;
+                const oldStyle = oldItem.style;
+                const newStyle = newItem.style;
                 if (oldStyle) {
                     if (newStyle) {
                         if (!!newStyle.outline !== !!oldStyle.outline) {
                             return true;
                         }
-                        if (oldStyle.size !== newStyle.size
-                            || oldStyle.italic !== newStyle.italic
-                            || oldStyle.isImage !== newStyle.isImage) {
+                        if (oldStyle.size !== newStyle.size || oldStyle.italic !== newStyle.italic || oldStyle.isImage !== newStyle.isImage) {
                             return true;
                         }
-                        if (oldStyle.src !== newStyle.src
-                            || oldStyle.imageAlign !== newStyle.imageAlign
-                            || oldStyle.imageHeight !== newStyle.imageHeight
-                            || oldStyle.imageWidth !== newStyle.imageWidth
-                            || oldStyle.imageOffset !== newStyle.imageOffset) {
+                        if (
+                            oldStyle.src !== newStyle.src ||
+                            oldStyle.imageAlign !== newStyle.imageAlign ||
+                            oldStyle.imageHeight !== newStyle.imageHeight ||
+                            oldStyle.imageWidth !== newStyle.imageWidth ||
+                            oldStyle.imageOffset !== newStyle.imageOffset
+                        ) {
                             return true;
                         }
                     } else if (oldStyle.size || oldStyle.italic || oldStyle.isImage || oldStyle.outline) {
@@ -973,7 +977,7 @@ this._measureText(styleIndex) as unknown as (s: string) => number,
         return false;
     }
 
-    protected _addRichTextImageElement (richTextElement: IHtmlTextParserResultObj): void {
+    protected _addRichTextImageElement(richTextElement: IHtmlTextParserResultObj): void {
         if (!richTextElement.style) {
             return;
         }
@@ -987,15 +991,15 @@ this._measureText(styleIndex) as unknown as (s: string) => number,
             const segment = this._createImage(spriteFrame);
             const uiTransform = segment.node._getUITransformComp()!;
             switch (style.imageAlign) {
-            case 'top':
-                uiTransform.setAnchorPoint(0, 1);
-                break;
-            case 'center':
-                uiTransform.setAnchorPoint(0, 0.5);
-                break;
-            default:
-                uiTransform.setAnchorPoint(0, 0);
-                break;
+                case "top":
+                    uiTransform.setAnchorPoint(0, 1);
+                    break;
+                case "center":
+                    uiTransform.setAnchorPoint(0, 0.5);
+                    break;
+                default:
+                    uiTransform.setAnchorPoint(0, 0);
+                    break;
             }
 
             if (style.imageOffset) {
@@ -1040,8 +1044,8 @@ this._measureText(styleIndex) as unknown as (s: string) => number,
             uiTransform.setContentSize(spriteWidth, spriteHeight);
             segment.lineCount = this._lineCount;
 
-            segment.clickHandler = '';
-            segment.clickParam = '';
+            segment.clickHandler = "";
+            segment.clickParam = "";
             const event = style.event;
             if (event) {
                 segment.clickHandler = event.click;
@@ -1050,7 +1054,7 @@ this._measureText(styleIndex) as unknown as (s: string) => number,
         }
     }
 
-    protected _updateTextDefaultColor (): void {
+    protected _updateTextDefaultColor(): void {
         for (let i = 0; i < this._segments.length; ++i) {
             const segment = this._segments[i];
             const label = segment.node.getComponent(Label);
@@ -1065,7 +1069,7 @@ this._measureText(styleIndex) as unknown as (s: string) => number,
         }
     }
 
-    protected _updateRichText (): void {
+    protected _updateRichText(): void {
         if (!this.enabledInHierarchy) {
             return;
         }
@@ -1091,7 +1095,7 @@ this._measureText(styleIndex) as unknown as (s: string) => number,
             }
 
             // handle <br/> <img /> tag
-            if (text === '') {
+            if (text === "") {
                 if (richTextElement.style && richTextElement.style.isNewLine) {
                     this._updateLineInfo();
                     continue;
@@ -1103,13 +1107,13 @@ this._measureText(styleIndex) as unknown as (s: string) => number,
             }
 
             const splitArr: string[] = this.splitLongStringApproximatelyIn2048(text, i);
-            text = splitArr.join('\n');
+            text = splitArr.join("\n");
 
-            const multilineTexts = text.split('\n');
+            const multilineTexts = text.split("\n");
 
             for (let j = 0; j < multilineTexts.length; ++j) {
                 const labelString = multilineTexts[j];
-                if (labelString === '') {
+                if (labelString === "") {
                     // for continues \n
                     if (this._isLastComponentCR(text) && j === multilineTexts.length - 1) {
                         continue;
@@ -1157,7 +1161,7 @@ this._measureText(styleIndex) as unknown as (s: string) => number,
         this._layoutDirty = false;
     }
 
-    protected _getFirstWordLen (text: string, startIndex: number, textLen: number): number {
+    protected _getFirstWordLen(text: string, startIndex: number, textLen: number): number {
         let character = getSymbolAt(text, startIndex);
         if (isUnicodeCJK(character) || isUnicodeSpace(character)) {
             return 1;
@@ -1176,7 +1180,7 @@ this._measureText(styleIndex) as unknown as (s: string) => number,
         return len;
     }
 
-    protected _updateRichTextPosition (): void {
+    protected _updateRichTextPosition(): void {
         let nextTokenX = 0;
         let nextLineIndex = 1;
         const totalLineCount = this._lineCount;
@@ -1193,26 +1197,22 @@ this._measureText(styleIndex) as unknown as (s: string) => number,
 
             let lineOffsetX = this._labelWidth * (this._horizontalAlign * 0.5 - anchorX);
             switch (this._horizontalAlign) {
-            case HorizontalTextAlignment.LEFT:
-                break;
-            case HorizontalTextAlignment.CENTER:
-                lineOffsetX -= this._linesWidth[lineCount - 1] / 2;
-                break;
-            case HorizontalTextAlignment.RIGHT:
-                lineOffsetX -= this._linesWidth[lineCount - 1];
-                break;
-            default:
-                break;
+                case HorizontalTextAlignment.LEFT:
+                    break;
+                case HorizontalTextAlignment.CENTER:
+                    lineOffsetX -= this._linesWidth[lineCount - 1] / 2;
+                    break;
+                case HorizontalTextAlignment.RIGHT:
+                    lineOffsetX -= this._linesWidth[lineCount - 1];
+                    break;
+                default:
+                    break;
             }
 
             const segmentNode = segment.node;
 
             const pos = segmentNode.position;
-            segmentNode.setPosition(
-                nextTokenX + lineOffsetX,
-                this._lineHeight * (totalLineCount - lineCount) - this._labelHeight * anchorY,
-                pos.z,
-            );
+            segmentNode.setPosition(nextTokenX + lineOffsetX, this._lineHeight * (totalLineCount - lineCount) - this._labelHeight * anchorY, pos.z);
 
             if (lineCount === nextLineIndex) {
                 nextTokenX += segmentNode._getUITransformComp()!.width;
@@ -1225,19 +1225,19 @@ this._measureText(styleIndex) as unknown as (s: string) => number,
                 const lineHeightSet = this._lineHeight;
                 const lineHeightReal = this._lineHeight * (1 + BASELINE_RATIO); // single line node height
                 switch (segmentNode._getUITransformComp()!.anchorY) {
-                case 1:
-                    position.y += (lineHeightSet + ((lineHeightReal - lineHeightSet) / 2));
-                    break;
-                case 0.5:
-                    position.y += (lineHeightReal / 2);
-                    break;
-                default:
-                    position.y += ((lineHeightReal - lineHeightSet) / 2);
-                    break;
+                    case 1:
+                        position.y += lineHeightSet + (lineHeightReal - lineHeightSet) / 2;
+                        break;
+                    case 0.5:
+                        position.y += lineHeightReal / 2;
+                        break;
+                    default:
+                        position.y += (lineHeightReal - lineHeightSet) / 2;
+                        break;
                 }
                 // adjust img offset (from <img offset=12|12,34>)
                 if (segment.imageOffset) {
-                    const offsets = segment.imageOffset.split(',');
+                    const offsets = segment.imageOffset.split(",");
                     if (offsets.length === 1 && offsets[0]) {
                         const offsetY = parseFloat(offsets[0]);
                         if (Number.isInteger(offsetY)) position.y += offsetY;
@@ -1261,7 +1261,7 @@ this._measureText(styleIndex) as unknown as (s: string) => number,
         }
     }
 
-    protected _convertLiteralColorValue (color: string): Color {
+    protected _convertLiteralColorValue(color: string): Color {
         const colorValue = color.toUpperCase();
         if (Color[colorValue]) {
             const colorUse: Color = Color[colorValue];
@@ -1272,7 +1272,7 @@ this._measureText(styleIndex) as unknown as (s: string) => number,
         }
     }
 
-    protected _applyTextAttribute (labelSeg: ISegment): void {
+    protected _applyTextAttribute(labelSeg: ISegment): void {
         const label = labelSeg.node.getComponent(Label);
         if (!label) {
             return;
@@ -1308,12 +1308,12 @@ this._measureText(styleIndex) as unknown as (s: string) => number,
 
             label.fontSize = textStyle.size || this._fontSize;
 
-            labelSeg.clickHandler = '';
-            labelSeg.clickParam = '';
+            labelSeg.clickHandler = "";
+            labelSeg.clickParam = "";
             const event = textStyle.event;
             if (event) {
-                labelSeg.clickHandler = event.click || '';
-                labelSeg.clickParam = event.param || '';
+                labelSeg.clickHandler = event.click || "";
+                labelSeg.clickParam = event.param || "";
             }
         }
 
@@ -1331,13 +1331,13 @@ this._measureText(styleIndex) as unknown as (s: string) => number,
         label.updateRenderData(true);
     }
 
-    protected _applyLayer (): void {
+    protected _applyLayer(): void {
         this._segments.forEach((seg) => {
             seg.node.layer = this.node.layer;
         });
     }
 
-    protected _resetLabelState (label: Label): void {
+    protected _resetLabelState(label: Label): void {
         label.fontSize = this._fontSize;
         label.color = this._fontColor;
         label.isBold = false;
