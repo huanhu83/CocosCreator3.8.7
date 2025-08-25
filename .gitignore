@@ -78,7 +78,6 @@
 /engine/cocos/deprecated.ts
 /engine/cocos/root.jsb.ts
 /engine/cocos/2d/index.ts
-/engine/cocos/2d/assembler
 /engine/cocos/2d/assets
 /engine/cocos/2d/event
 /engine/cocos/2d/renderer
