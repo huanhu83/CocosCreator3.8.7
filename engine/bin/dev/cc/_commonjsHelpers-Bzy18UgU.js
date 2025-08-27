@@ -1,0 +1,16 @@
+System.register([], (function (exports) {
+	'use strict';
+	return {
+		execute: (function () {
+
+			exports("g", getDefaultExportFromCjs);
+
+			var commonjsGlobal = exports("c", typeof globalThis !== 'undefined' ? globalThis : typeof window !== 'undefined' ? window : typeof global !== 'undefined' ? global : typeof self !== 'undefined' ? self : {});
+
+			function getDefaultExportFromCjs (x) {
+				return x && x.__esModule && Object.prototype.hasOwnProperty.call(x, 'default') ? x['default'] : x;
+			}
+
+		})
+	};
+}));

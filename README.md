@@ -196,3 +196,9 @@
         seg.clickHandler = "";
         return seg as ISegment | null;
     }
+
+8.修复平铺贴图有接缝的BUG(3.8.7)
+    修改文件：engine\cocos\2d\assembler\tiled.ts
+
+    注释掉updateRenderData方法中的一句代码：
+    // dynamicAtlasManager.packToDynamicAtlas(sprite, frame); //[自定义]，解决平铺贴图有接缝的问题
