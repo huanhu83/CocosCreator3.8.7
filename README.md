@@ -202,3 +202,13 @@
 
     注释掉updateRenderData方法中的一句代码：
     // dynamicAtlasManager.packToDynamicAtlas(sprite, frame); //[自定义]，解决平铺贴图有接缝的问题
+
+9.解决IOS视频播放点击出现操作面板问题
+    修改文件engine\native\cocos\ui\videoplayer\VideoPlayer-ios.mm
+- (void)initPlayerController {
+    self.playerController = [AVPlayerViewController new];
+    [self setFrame:_left:_top:_width:_height];
+    [self showPlaybackControls:NO]; //这里的TRUE改成NO
+    [self setKeepRatioEnabled:_keepRatioEnabled];
+    _state = PlayerbackStateUnknown;
+}
