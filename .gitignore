@@ -2263,7 +2263,6 @@
 /engine/native/cocos/storage/local-storage/LocalStorage.cpp
 /engine/native/cocos/storage/local-storage/LocalStorage.h
 /engine/native/cocos/ui/edit-box/EditBox-android.cpp
-/engine/native/cocos/ui/edit-box/EditBox-ios.mm
 /engine/native/cocos/ui/edit-box/EditBox-linux.cpp
 /engine/native/cocos/ui/edit-box/EditBox-mac.mm
 /engine/native/cocos/ui/edit-box/EditBox-ohos.cpp
