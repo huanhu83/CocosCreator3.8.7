@@ -1,4 +1,15 @@
 # CocosCreator3.8.7
+补充：小游戏热更问题
+    修改文件：engine\platforms\minigame\common\engine\AssetManager.js
+    a) 将downloadBundle方法中的
+            const version = options.version || cc.assetManager.downloader.bundleVers[bundleName];
+            const suffix = version ? `${version}.` : '';
+        改成
+            const version = cc.assetManager.downloader.bundleVers[bundleName];
+            const suffix = version ? `${version}.` : '';
+            const configVerA = options.version ? `${options.version}.` : suffix;   
+    b) 将 const config = `${url}/config.${suffix}json`; 改成 const config = `${url}/config.${configVerA}json`; 
+
 1.输入时字符不能超过限定长度
     修改文件：engine\platforms\minigame\common\engine\Editbox.js
     _registerKeyboardEvent () {
@@ -145,7 +156,7 @@
         this._renderEntity.enabled = false;
     }
 
-7.RichText支持Sorting2D
+7.RichText支持Sorting2D(用了98K插件，用不上了)
     修改文件：engine\cocos\2d\components\rich-text.ts
 
     //引入Sorting2D
@@ -197,7 +208,7 @@
         return seg as ISegment | null;
     }
 
-8.修复平铺贴图有接缝的BUG(3.8.7)
+8.修复平铺贴图有接缝的BUG(3.8.7以上)
     修改文件：engine\cocos\2d\assembler\tiled.ts
 
     注释掉updateRenderData方法中的一句代码：
@@ -205,10 +216,77 @@
 
 9.解决IOS视频播放点击出现操作面板问题
     修改文件engine\native\cocos\ui\videoplayer\VideoPlayer-ios.mm
-- (void)initPlayerController {
-    self.playerController = [AVPlayerViewController new];
-    [self setFrame:_left:_top:_width:_height];
-    [self showPlaybackControls:NO]; //这里的TRUE改成NO
-    [self setKeepRatioEnabled:_keepRatioEnabled];
-    _state = PlayerbackStateUnknown;
-}
+    - (void)initPlayerController {
+        self.playerController = [AVPlayerViewController new];
+        [self setFrame:_left:_top:_width:_height];
+        [self showPlaybackControls:NO]; //这里的TRUE改成NO
+        [self setKeepRatioEnabled:_keepRatioEnabled];
+        _state = PlayerbackStateUnknown;
+    }
+
+10.iPhone系统升级到26.0后，键盘输入框显示不全的BUG
+    修改文件：engine\native\cocos\ui\EditBox-ios.mm
+    一、先屏蔽原addInputAccessoryViewForTextField方法。用下面的代码替换
+    - (void) addInputAccessoryViewForTextField: (InputBoxPair*)inputbox
+                                      with: (const cc::EditBox::ShowInfo*)showInfo{
+        CGRect safeView = getSafeAreaRect();
+        UIView *container = [[UIView alloc] initWithFrame:CGRectMake(0, 0, 0, TEXT_LINE_HEIGHT + ITEM_MARGIN_HEIGHT)];
+        container.backgroundColor = [UIColor darkGrayColor];
+
+        //TextField
+        UITextField* textField = [[UITextField alloc] init];
+        textField.borderStyle = UITextBorderStyleRoundedRect;
+        textField.font = [UIFont systemFontOfSize:16];
+        textField.translatesAutoresizingMaskIntoConstraints = NO;
+        textField.text = [NSString stringWithUTF8String:showInfo->defaultValue.c_str()];
+
+        //delegate
+        TextFieldDelegate* delegate = [[TextFieldDelegate alloc] initWithPairs:[inputbox inputOnView] and:textField];
+        textField.delegate = delegate;
+        [textField addTarget:delegate action:@selector(textFieldDidChange:) forControlEvents:UIControlEventEditingChanged];
+        inputbox.inputDelegate = delegate;
+
+        //Done button
+        if (!btnHandler){
+            btnHandler = [[ButtonHandler alloc] init];
+        }
+
+        UIButton *doneBtn = [[UIButton alloc]initWithFrame:CGRectMake(0,0,BUTTON_WIDTH,BUTTON_HEIGHT)];
+        [doneBtn setTitle:[NSString stringWithUTF8String:showInfo->confirmType.c_str()]
+                forState:UIControlStateNormal];
+        [doneBtn setTitleColor:[UIColor systemBlueColor]
+                    forState:UIControlStateNormal];
+        [doneBtn addTarget:btnHandler
+                    action:@selector(buttonTapped:)
+        forControlEvents:UIControlEventTouchUpInside];
+        doneBtn.translatesAutoresizingMaskIntoConstraints = NO;
+
+        //hierarchy
+        [container addSubview:textField];
+        [container addSubview:doneBtn];
+
+        //AutoLayout只在container内部使用
+        UILayoutGuide *safeGuide = container.safeAreaLayoutGuide;
+        [NSLayoutConstraint activateConstraints:@[
+            //done
+            [doneBtn.trailingAnchor constraintEqualToAnchor:safeGuide.trailingAnchor constant:-ITEM_MARGIN_WIDTH],
+            [doneBtn.centerYAnchor constraintEqualToAnchor:container.centerYAnchor],
+            [doneBtn.widthAnchor constraintEqualToConstant:BUTTON_WIDTH],
+            //textField
+            [textField.leadingAnchor constraintEqualToAnchor:safeGuide.leadingAnchor constant:ITEM_MARGIN_WIDTH],
+            [textField.trailingAnchor constraintEqualToAnchor:doneBtn.leadingAnchor constant:-ITEM_MARGIN_WIDTH],
+            [textField.centerYAnchor constraintEqualToAnchor:container.centerYAnchor],
+            [textField.heightAnchor constraintEqualToConstant:TEXT_LINE_HEIGHT],
+        ]];
+        //set inputAccessoryView
+        ((UITextField*)[inputbox inputOnView]).inputAccessoryView = container;
+        [inputbox setInputOnToolbar:textField];
+
+        //释放
+        [container release];
+        [textField release];
+        [doneBtn release];
+    }
+
+    二、在createTextField方法中注释掉如下代码:
+        // [self setInputWidthOf:[[ret inputOnView] inputAccessoryView] ];
