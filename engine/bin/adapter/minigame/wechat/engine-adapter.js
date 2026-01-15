@@ -158,8 +158,9 @@ function downloadAsset(url, options, onComplete) {
 }
 function downloadBundle(nameOrUrl, options, onComplete) {
   var bundleName = cc.path.basename(nameOrUrl);
-  var version = options.version || cc.assetManager.downloader.bundleVers[bundleName];
+  var version = cc.assetManager.downloader.bundleVers[bundleName];
   var suffix = version ? "".concat(version, ".") : '';
+  var configVerA = options.version ? "".concat(options.version, ".") : suffix;
   function getConfigPathForSubPackage() {
     if (sys.platform === sys.Platform.TAOBAO_MINI_GAME) {
       return "".concat(bundleName, "/config.").concat(suffix, "json");
@@ -208,7 +209,7 @@ function downloadBundle(nameOrUrl, options, onComplete) {
       require("./".concat(js));
     }
     options.__cacheBundleRoot__ = bundleName;
-    var _config = "".concat(url, "/config.").concat(suffix, "json");
+    var _config = "".concat(url, "/config.").concat(configVerA, "json");
     downloadJson(_config, options, function (err, data) {
       if (err) {
         onComplete && onComplete(err);
