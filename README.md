@@ -290,3 +290,26 @@
 
     二、在createTextField方法中注释掉如下代码:
         // [self setInputWidthOf:[[ret inputOnView] inputAccessoryView] ];
+
+11.InputMode为NUMERIC的EditBox在iOS26版本异常
+    修改文件：engine\native\cocos\ui\EditBox-ios.mm
+    void setTextFieldKeyboardType(UITextField *textField, const ccstd::string &inputType) {
+        if (0 == inputType.compare("password")) {
+            textField.secureTextEntry = TRUE;
+            textField.keyboardType = UIKeyboardTypeDefault;
+        } else {
+            textField.secureTextEntry = FALSE;
+            if (0 == inputType.compare("email"))
+                textField.keyboardType = UIKeyboardTypeEmailAddress;
+            else if (0 == inputType.compare("number"))
+                textField.keyboardType = UIKeyboardTypeDecimalPad;
+                //InputMode为NUMERIC的EditBox在iOS26版本异常,添加下面的代码
+                if (@available(iOS 26.0, *)) {
+                    textField.allowsNumberPadPopover = NO;
+                }
+            else if (0 == inputType.compare("url"))
+                textField.keyboardType = UIKeyboardTypeURL;
+            else if (0 == inputType.compare("text"))
+                textField.keyboardType = UIKeyboardTypeDefault;
+        }
+    }

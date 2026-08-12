@@ -145,6 +145,10 @@ void setTextFieldKeyboardType(UITextField *textField, const ccstd::string &input
             textField.keyboardType = UIKeyboardTypeEmailAddress;
         else if (0 == inputType.compare("number"))
             textField.keyboardType = UIKeyboardTypeDecimalPad;
+            //InputMode为NUMERIC的EditBox在iOS26版本异常
+            if (@available(iOS 26.0, *)) {
+                textField.allowsNumberPadPopover = NO;
+            }
         else if (0 == inputType.compare("url"))
             textField.keyboardType = UIKeyboardTypeURL;
         else if (0 == inputType.compare("text"))
